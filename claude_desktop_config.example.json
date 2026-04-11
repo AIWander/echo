@@ -1,0 +1,19 @@
+{
+  "// NOTE": "You need Ollama installed (https://ollama.com) with at least one model pulled.",
+  "// SETUP": "Run: ollama serve && ollama pull nomic-embed-text && ollama pull mistral:7b",
+
+  "mcpServers": {
+
+    "// x64 configuration (most Windows machines)": "",
+    "echo": {
+      "command": "C:\\CPC\\servers\\echo.exe",
+      "args": []
+    },
+
+    "// ARM64 configuration (Surface Pro X, Snapdragon laptops, etc.)": "",
+    "echo-arm64": {
+      "command": "C:\\CPC\\servers\\echo-arm64.exe",
+      "args": []
+    }
+  }
+}
