@@ -50,8 +50,8 @@ You pick the Ollama model. echo runs it. Your data stays on your machine.
 ## Installation
 
 1. Download the echo binary for your platform from [Releases](https://github.com/josephwander-arch/echo/releases):
-   - `echo-x86_64-pc-windows-msvc.exe` for x64
-   - `echo-aarch64-pc-windows-msvc.exe` for ARM64
+   - `echo_x64_windows.exe` for x64
+   - `echo_arm64_windows.exe` for ARM64
 
 2. Place the binary somewhere permanent (e.g., `C:\CPC\servers\echo.exe`).
 
