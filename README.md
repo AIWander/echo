@@ -1,5 +1,7 @@
 # echo MCP Server
 
+> **Beta** - echo is under active development. API surface, tool names, and semantics may change between releases. Production use is not recommended until a v2.0 stable release.
+
 **Model-agnostic local AI for Claude Desktop.**
 
 echo wraps [Ollama](https://ollama.com) as an MCP server — giving Claude semantic search, embeddings, retrospection analysis, error pattern learning, and web summarization using **any local model you choose**.
