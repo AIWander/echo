@@ -205,4 +205,4 @@ If echo saves you time or tokens: **$NeverRemember** (Cash App)
 
 ---
 
-*echo is part of the CPC (Cognitive Performance Computing) platform.*
+*echo is part of the CPC (Copy Paste Compute) platform.*
