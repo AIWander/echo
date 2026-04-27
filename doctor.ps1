@@ -21,7 +21,7 @@ if (Test-Path $BinaryPath) {
     $passed++
 } else {
     Write-Host "  FAIL: Binary not found at $BinaryPath" -ForegroundColor Red
-    Write-Host "  Fix: Download from https://github.com/josephwander-arch/echo/releases" -ForegroundColor Gray
+    Write-Host "  Fix: Download from https://github.com/AIWander/echo/releases" -ForegroundColor Gray
     $failed++
 }
 

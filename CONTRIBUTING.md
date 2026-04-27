@@ -15,7 +15,7 @@ Thanks for your interest in contributing to echo.
 
 ```bash
 # Clone
-git clone https://github.com/josephwander-arch/echo.git
+git clone https://github.com/AIWander/echo.git
 cd echo
 
 # Build
@@ -100,5 +100,5 @@ By contributing, you agree that your contributions will be licensed under the Ap
 
 ## Contact
 
-- GitHub: [josephwander-arch](https://github.com/josephwander-arch/)
+- GitHub: [AIWander](https://github.com/AIWander/)
 - Email: protipsinc@gmail.com

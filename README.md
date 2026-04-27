@@ -51,7 +51,7 @@ You pick the Ollama model. echo runs it. Your data stays on your machine.
 
 ## Installation
 
-1. Download the echo binary for your platform from [Releases](https://github.com/josephwander-arch/echo/releases):
+1. Download the echo binary for your platform from [Releases](https://github.com/AIWander/echo/releases):
    - `echo_x64_windows.exe` for x64
    - `echo_arm64_windows.exe` for ARM64
 
@@ -182,7 +182,7 @@ Works with any MCP client. Common install channels:
 **Two install layouts:**
 
 1. **Local folder** — clone or download this repo, then point your client at the local directory or the extracted `.exe` binary.
-2. **Installed binary** — grab the `.exe` from the [Releases](https://github.com/josephwander-arch/echo/releases) page, place it wherever you keep your MCP binaries, then register its path in your client's config.
+2. **Installed binary** — grab the `.exe` from the [Releases](https://github.com/AIWander/echo/releases) page, place it wherever you keep your MCP binaries, then register its path in your client's config.
 
 **Also ships as a skill** — if your client supports Anthropic skill files, load `skills/echo.md` directly. Skill-only mode gives you the behavioral guidance without running the server; useful for planning, review, or read-only workflows.
 
@@ -200,7 +200,7 @@ If echo saves you time or tokens: **$NeverRemember** (Cash App)
 
 ## Contact
 
-- GitHub: [josephwander-arch](https://github.com/josephwander-arch/)
+- GitHub: [AIWander](https://github.com/AIWander/)
 - Email: protipsinc@gmail.com
 
 ---

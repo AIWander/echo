@@ -32,4 +32,4 @@ Initial public release.
 - Currency detection warnings on smart_fetch for time-sensitive content
 - ARM64 and x64 Windows binaries
 
-[1.1.1]: https://github.com/josephwander-arch/echo/releases/tag/v1.1.1
+[1.1.1]: https://github.com/AIWander/echo/releases/tag/v1.1.1
