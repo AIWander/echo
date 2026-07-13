@@ -194,14 +194,10 @@ For the smoothest experience, enable **tools always loaded** in your Claude clie
 
 Apache License 2.0 — see [LICENSE](LICENSE).
 
-## Donations
-
-If echo saves you time or tokens: **$NeverRemember** (Cash App)
-
 ## Contact
 
 - GitHub: [AIWander](https://github.com/AIWander/)
-- Email: protipsinc@gmail.com
+- Email: contact@aiwander.ai
 
 ---
 
