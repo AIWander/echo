@@ -101,4 +101,4 @@ By contributing, you agree that your contributions will be licensed under the Ap
 ## Contact
 
 - GitHub: [AIWander](https://github.com/AIWander/)
-- Email: protipsinc@gmail.com
+- Email: contact@aiwander.ai
