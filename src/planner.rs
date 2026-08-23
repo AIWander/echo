@@ -1,5 +1,5 @@
-﻿//! Ingredient-based Planner/Router with per-server Requirements
-//! 
+//! Ingredient-based Planner/Router with per-server Requirements
+//!
 //! Returns: ingredients, dependencies, requirements, breadcrumb recommendation
 //! Requirements are the server's own pre/post conditions for its tools.
 //! When a lead planner assembles a cross-server plan, it collects requirements
@@ -28,9 +28,11 @@ pub fn get_definition() -> Value {
 pub fn plan(args: &Value) -> Value {
     let task = args.get("task").and_then(|v| v.as_str()).unwrap_or("");
     let context = args.get("context").and_then(|v| v.as_str()).unwrap_or("");
-    if task.is_empty() { return json!({"error": "task is required"}); }
+    if task.is_empty() {
+        return json!({"error": "task is required"});
+    }
     let t = task.to_lowercase();
-    
+
     if t.contains("extract") || t.contains("insight") || t.contains("learn") {
         extraction_recipe(&t, context)
     } else if t.contains("write") || t.contains("update") || t.contains("edit") {
@@ -39,7 +41,11 @@ pub fn plan(args: &Value) -> Value {
         search_recipe(&t, context)
     } else if t.contains("consolidat") || t.contains("maintenance") || t.contains("cleanup") {
         maintenance_recipe(&t, context)
-    } else if t.contains("build") || t.contains("compile") || t.contains("rebuild") || t.contains("deploy") {
+    } else if t.contains("build")
+        || t.contains("compile")
+        || t.contains("rebuild")
+        || t.contains("deploy")
+    {
         build_recipe(&t, context)
     } else if t.contains("research") || t.contains("investigate") {
         research_recipe(&t, context)
@@ -339,7 +345,8 @@ fn cross_server_requirements(domain: &str) -> Value {
                 "for_forms": ["screenshot before + after for verification"]
             }
         }),
-        "ai_delegation" | "manager" | "claude-bridge" | "claude-runner" | "codex" | "gemini-mcp" => json!({
+        "ai_delegation" | "manager" | "claude-bridge" | "claude-runner" | "codex"
+        | "gemini-mcp" => json!({
             "domain": "ai_delegation",
             "servers": ["manager", "claude-bridge", "claude-runner", "codex", "gemini-mcp"],
             "common_requirements": {
@@ -358,7 +365,7 @@ fn cross_server_requirements(domain: &str) -> Value {
                 "echo_semantic": ["requires Ollama running - check echo:health first"]
             }
         }),
-        _ => json!({"domain": "unknown", "note": "No known requirements for this domain"})
+        _ => json!({"domain": "unknown", "note": "No known requirements for this domain"}),
     }
 }
 
@@ -367,38 +374,59 @@ fn cross_server_requirements(domain: &str) -> Value {
 pub fn assemble(args: &Value) -> Value {
     let empty = json!({});
     let primary_plan = args.get("plan").unwrap_or(&empty);
-    
+
     // Collect domains from handoff_if
     let empty_obj = json!({});
     let handoff = primary_plan.get("handoff_if").unwrap_or(&empty_obj);
     let mut domains_seen = std::collections::HashSet::new();
     let mut cross_reqs = Vec::new();
-    
+
     if let Some(obj) = handoff.as_object() {
         for (_key, val) in obj {
             if let Some(target) = val.as_str() {
                 // Extract server name from target like "ops/local/programmer" or "utonomous"
                 let server = target.split('/').next().unwrap_or(target).trim();
                 let reqs = cross_server_requirements(server);
-                let domain = reqs.get("domain").and_then(|d| d.as_str()).unwrap_or("").to_string();
+                let domain = reqs
+                    .get("domain")
+                    .and_then(|d| d.as_str())
+                    .unwrap_or("")
+                    .to_string();
                 if !domain.is_empty() && domains_seen.insert(domain.clone()) {
                     cross_reqs.push(reqs);
                 }
             }
         }
     }
-    
+
     // Also check ingredients for server references
     if let Some(ingredients) = primary_plan.get("ingredients").and_then(|i| i.as_array()) {
         for ing in ingredients {
             if let Some(tool) = ing.get("tool").and_then(|t| t.as_str()) {
                 // Map tools to domains
                 let domain = match tool {
-                    t if t.contains("breadcrumb") || t.contains("read") || t.contains("write") || t.contains("extract") || t.contains("catalog") => "knowledge",
-                    t if t.contains("powershell") || t.contains("psession") || t.contains("build") => "execution",
-                    t if t.contains("navigate") || t.contains("click") || t.contains("screenshot") => "automation",
+                    t if t.contains("breadcrumb")
+                        || t.contains("read")
+                        || t.contains("write")
+                        || t.contains("extract")
+                        || t.contains("catalog") =>
+                    {
+                        "knowledge"
+                    }
+                    t if t.contains("powershell")
+                        || t.contains("psession")
+                        || t.contains("build") =>
+                    {
+                        "execution"
+                    }
+                    t if t.contains("navigate")
+                        || t.contains("click")
+                        || t.contains("screenshot") =>
+                    {
+                        "automation"
+                    }
                     t if t.contains("submit") || t.contains("delegate") => "ai_delegation",
-                    _ => ""
+                    _ => "",
                 };
                 if !domain.is_empty() && domains_seen.insert(domain.to_string()) {
                     cross_reqs.push(cross_server_requirements(domain));
@@ -406,7 +434,7 @@ pub fn assemble(args: &Value) -> Value {
             }
         }
     }
-    
+
     json!({
         "primary_plan": primary_plan,
         "cross_server_requirements": cross_reqs,

@@ -1,4 +1,4 @@
-﻿//! Retrospector MCP Server v1.3.0
+//! Retrospector MCP Server v1.3.0
 //! Local AI-powered conversation analysis using Ollama — model-agnostic
 //!
 //! Tools:
@@ -11,8 +11,8 @@
 //! - health: Check Ollama connection and list available models
 // NAV: TOC at line 1082 | 11 fn | 14 struct | 2026-04-11
 
-mod semantic;
 mod planner;
+mod semantic;
 
 use anyhow::Result;
 use regex::Regex;
@@ -23,11 +23,12 @@ use std::collections::HashMap;
 use std::io::{BufRead, Write};
 use std::sync::{Arc, RwLock};
 use std::time::Instant;
-use tracing::{info, warn, error};
+use tracing::{error, info, warn};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 const OLLAMA_URL: &str = "http://localhost:11434";
-const FALLBACK_MAP_PATH: &str = "C:\\My Drive\\Volumes\\system_architecture\\tool_fallback_map.json";
+const FALLBACK_MAP_PATH: &str =
+    "C:\\My Drive\\Volumes\\system_architecture\\tool_fallback_map.json";
 const ERROR_FALLBACKS_PATH: &str = "C:\\My Drive\\Volumes\\logs\\error_fallbacks.json";
 
 // ============================================================================
@@ -87,34 +88,35 @@ fn strip_html(html: &str) -> String {
     let re_head = Regex::new(r"(?is)<head[^>]*>.*?</head>").unwrap();
     let re_nav = Regex::new(r"(?is)<nav[^>]*>.*?</nav>").unwrap();
     let re_footer = Regex::new(r"(?is)<footer[^>]*>.*?</footer>").unwrap();
-    
+
     let mut text = html.to_string();
     text = re_script.replace_all(&text, "").to_string();
     text = re_style.replace_all(&text, "").to_string();
     text = re_head.replace_all(&text, "").to_string();
     text = re_nav.replace_all(&text, "").to_string();
     text = re_footer.replace_all(&text, "").to_string();
-    
+
     let re_blocks = Regex::new(r"(?i)</(p|div|h[1-6]|li|tr|br)[^>]*>").unwrap();
     text = re_blocks.replace_all(&text, "\n").to_string();
-    
+
     let re_tags = Regex::new(r"<[^>]+>").unwrap();
     text = re_tags.replace_all(&text, "").to_string();
-    
-    text = text.replace("&nbsp;", " ")
+
+    text = text
+        .replace("&nbsp;", " ")
         .replace("&amp;", "&")
         .replace("&lt;", "<")
         .replace("&gt;", ">")
         .replace("&quot;", "\"")
         .replace("&#39;", "'")
         .replace("&apos;", "'");
-    
+
     let re_whitespace = Regex::new(r"[ \t]+").unwrap();
     text = re_whitespace.replace_all(&text, " ").to_string();
-    
+
     let re_newlines = Regex::new(r"\n\s*\n+").unwrap();
     text = re_newlines.replace_all(&text, "\n\n").to_string();
-    
+
     text.trim().to_string()
 }
 
@@ -145,18 +147,36 @@ struct CurrencyCheck {
 fn check_currency_needs(text: &str) -> CurrencyCheck {
     let mut result = CurrencyCheck::default();
     let text_lower = text.to_lowercase();
-    
+
     // Patterns that suggest time-sensitive content
     let patterns = [
-        (r"(?i)(as of|updated|last updated)\s*(january|february|march|april|may|june|july|august|september|october|november|december|\d{1,2}[/-]\d{1,2})", "Contains date reference"),
-        (r"(?i)(current(ly)?|now|today|this week|this month|latest)\s+(price|rate|status|ceo|president|leader)", "Current status reference"),
+        (
+            r"(?i)(as of|updated|last updated)\s*(january|february|march|april|may|june|july|august|september|october|november|december|\d{1,2}[/-]\d{1,2})",
+            "Contains date reference",
+        ),
+        (
+            r"(?i)(current(ly)?|now|today|this week|this month|latest)\s+(price|rate|status|ceo|president|leader)",
+            "Current status reference",
+        ),
         (r"(?i)\$\d+[\d,]*(\.\d{2})?", "Contains prices"),
-        (r"(?i)(stock|share|market)\s+(price|value|trading)", "Financial data"),
-        (r"(?i)(election|vote|poll|approval rating)", "Political/polling data"),
-        (r"(?i)(breaking|just (announced|released)|recently)", "Recent events language"),
-        (r"(?i)(q[1-4]\s*20\d{2}|fy\s*20\d{2}|20\d{2}\s*(earnings|results|report))", "Financial period reference"),
+        (
+            r"(?i)(stock|share|market)\s+(price|value|trading)",
+            "Financial data",
+        ),
+        (
+            r"(?i)(election|vote|poll|approval rating)",
+            "Political/polling data",
+        ),
+        (
+            r"(?i)(breaking|just (announced|released)|recently)",
+            "Recent events language",
+        ),
+        (
+            r"(?i)(q[1-4]\s*20\d{2}|fy\s*20\d{2}|20\d{2}\s*(earnings|results|report))",
+            "Financial period reference",
+        ),
     ];
-    
+
     for (pattern, reason) in patterns {
         if let Ok(re) = Regex::new(pattern) {
             if let Some(m) = re.find(&text_lower) {
@@ -174,7 +194,7 @@ fn check_currency_needs(text: &str) -> CurrencyCheck {
             }
         }
     }
-    
+
     result
 }
 
@@ -186,17 +206,17 @@ fn check_currency_needs(text: &str) -> CurrencyCheck {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 struct HeuristicResults {
-    corrections: Vec<String>,    // Self-repair, mistakes caught â†’ behavioral_patterns
-    decisions: Vec<String>,      // Choices made â†’ behavioral_patterns
-    discoveries: Vec<String>,    // Things learned â†’ topic-dependent
-    success: Vec<String>,        // Things that worked â†’ tool_selection, system_architecture
-    frustration: Vec<String>,    // Pain points â†’ friction_reduction, anti_patterns
-    anti_patterns: Vec<String>,  // Recognized mistakes â†’ anti_patterns
-    pivots: Vec<String>,         // Topic changes â†’ extraction sweep trigger
-    hedging: Vec<String>,        // Uncertainty signals â†’ held-back thoughts
+    corrections: Vec<String>, // Self-repair, mistakes caught â†’ behavioral_patterns
+    decisions: Vec<String>,   // Choices made â†’ behavioral_patterns
+    discoveries: Vec<String>, // Things learned â†’ topic-dependent
+    success: Vec<String>,     // Things that worked â†’ tool_selection, system_architecture
+    frustration: Vec<String>, // Pain points â†’ friction_reduction, anti_patterns
+    anti_patterns: Vec<String>, // Recognized mistakes â†’ anti_patterns
+    pivots: Vec<String>,      // Topic changes â†’ extraction sweep trigger
+    hedging: Vec<String>,     // Uncertainty signals â†’ held-back thoughts
     // Legacy aliases (kept for backward compat in JSON output)
-    emotions: Vec<String>,       // Maps to frustration + success combined
-    held_back: Vec<String>,      // Maps to hedging
+    emotions: Vec<String>,  // Maps to frustration + success combined
+    held_back: Vec<String>, // Maps to hedging
     score: f32,
 }
 
@@ -204,86 +224,124 @@ fn extract_context(text: &str, start: usize, end: usize, before: usize, after: u
     let mut ctx_start = start.saturating_sub(before);
     let mut ctx_end = (end + after).min(text.len());
     // Ensure we're on char boundaries
-    while ctx_start > 0 && !text.is_char_boundary(ctx_start) { ctx_start -= 1; }
-    while ctx_end < text.len() && !text.is_char_boundary(ctx_end) { ctx_end += 1; }
+    while ctx_start > 0 && !text.is_char_boundary(ctx_start) {
+        ctx_start -= 1;
+    }
+    while ctx_end < text.len() && !text.is_char_boundary(ctx_end) {
+        ctx_end += 1;
+    }
     text[ctx_start..ctx_end].to_string()
 }
 
 fn run_heuristics(text: &str) -> HeuristicResults {
     let mut results = HeuristicResults::default();
-    
+
     // â”€â”€ CORRECTIONS: Self-repair & mistake acknowledgment â”€â”€
     // Discourse markers: rectifying reformulators, self-repair initiators
     // "actually" as topic-shift correction, "I mean" as reformulation
-    if let Ok(re) = Regex::new(r"(?i)\b(actually[,.]?\s|no wait|I was wrong|let me correct|that's not right|I misspoke|not quite|scratch that|never mind|my bad|oops|my mistake|I meant|what I meant|let me rephrase|I stand corrected|correction:|hold on[,.]?\s|wait[,.]?\s(?:no|that)|rather[,.]?\s|instead[,.]?\s(?:of|we)|I take that back|disregard|ignore what I|that's incorrect|I need to fix|I messed up|wrong about|shouldn't have said|let me clarify|to clarify|I should say|more accurately|to be precise|strike that|that came out wrong|I didn't mean)\b") {
+    if let Ok(re) = Regex::new(
+        r"(?i)\b(actually[,.]?\s|no wait|I was wrong|let me correct|that's not right|I misspoke|not quite|scratch that|never mind|my bad|oops|my mistake|I meant|what I meant|let me rephrase|I stand corrected|correction:|hold on[,.]?\s|wait[,.]?\s(?:no|that)|rather[,.]?\s|instead[,.]?\s(?:of|we)|I take that back|disregard|ignore what I|that's incorrect|I need to fix|I messed up|wrong about|shouldn't have said|let me clarify|to clarify|I should say|more accurately|to be precise|strike that|that came out wrong|I didn't mean)\b",
+    ) {
         for cap in re.find_iter(text) {
-            results.corrections.push(extract_context(text, cap.start(), cap.end(), 50, 100));
+            results
+                .corrections
+                .push(extract_context(text, cap.start(), cap.end(), 50, 100));
         }
     }
-    
+
     // â”€â”€ DECISIONS: Choices, commitments, direction changes â”€â”€
     // Discourse markers: conclusive connectors, resolution signals
-    if let Ok(re) = Regex::new(r"(?i)\b(let's do|let's go with|decided to|go with|the plan is|we should|hold off|choosing|I'll go with|we'll use|switching to|committed to|settled on|final answer|the approach is|sticking with|opting for|I prefer|better to|the move is|I vote for|let's try|let's use|let's keep|let's drop|let's skip|let's avoid|ruling out|in favor of|over .{1,20} because|the winner is|going forward|from now on|new rule|new policy|the standard is)\b") {
+    if let Ok(re) = Regex::new(
+        r"(?i)\b(let's do|let's go with|decided to|go with|the plan is|we should|hold off|choosing|I'll go with|we'll use|switching to|committed to|settled on|final answer|the approach is|sticking with|opting for|I prefer|better to|the move is|I vote for|let's try|let's use|let's keep|let's drop|let's skip|let's avoid|ruling out|in favor of|over .{1,20} because|the winner is|going forward|from now on|new rule|new policy|the standard is)\b",
+    ) {
         for cap in re.find_iter(text) {
-            results.decisions.push(extract_context(text, cap.start(), cap.end(), 30, 80));
+            results
+                .decisions
+                .push(extract_context(text, cap.start(), cap.end(), 30, 80));
         }
     }
-    
+
     // â”€â”€ DISCOVERIES: Insights, lessons, root causes â”€â”€
     // Discourse markers: evidential markers, epistemic shift signals
-    if let Ok(re) = Regex::new(r"(?i)\b(turns out|realized|found out|the fix was|lesson learned|key insight|the trick is|the problem was|root cause|figured out|breakthrough|discovered|it works because|the issue was|the reason is|mystery solved|now I understand|makes sense now|the answer is|that explains|so that's why|the secret is|pro tip|TIL|learned that|good to know|worth noting|important detail|the catch is|gotcha:|caveat:|heads up|for future reference|note to self|remember that|the pattern is|takeaway)\b") {
+    if let Ok(re) = Regex::new(
+        r"(?i)\b(turns out|realized|found out|the fix was|lesson learned|key insight|the trick is|the problem was|root cause|figured out|breakthrough|discovered|it works because|the issue was|the reason is|mystery solved|now I understand|makes sense now|the answer is|that explains|so that's why|the secret is|pro tip|TIL|learned that|good to know|worth noting|important detail|the catch is|gotcha:|caveat:|heads up|for future reference|note to self|remember that|the pattern is|takeaway)\b",
+    ) {
         for cap in re.find_iter(text) {
-            results.discoveries.push(extract_context(text, cap.start(), cap.end(), 40, 100));
+            results
+                .discoveries
+                .push(extract_context(text, cap.start(), cap.end(), 40, 100));
         }
     }
-    
+
     // â”€â”€ SUCCESS: Confirmations, wins, things that worked â”€â”€
     // AFINN positive valence words adapted for task context
-    if let Ok(re) = Regex::new(r"(?i)\b(working now|fixed it|nailed it|that did it|solved|confirmed|verified|passing|deployed|shipped|looks good|works perfectly|success|brilliant|excellent|spot on|exactly right|perfect|love it|great job|nice work|well done|crushed it|clean build|all green|tests pass|no errors|smooth|flawless|mission accomplished|that's the one|bingo|jackpot|finally works|boom|ship it|done and done|good to go|ready to roll|locked in)\b") {
+    if let Ok(re) = Regex::new(
+        r"(?i)\b(working now|fixed it|nailed it|that did it|solved|confirmed|verified|passing|deployed|shipped|looks good|works perfectly|success|brilliant|excellent|spot on|exactly right|perfect|love it|great job|nice work|well done|crushed it|clean build|all green|tests pass|no errors|smooth|flawless|mission accomplished|that's the one|bingo|jackpot|finally works|boom|ship it|done and done|good to go|ready to roll|locked in)\b",
+    ) {
         for cap in re.find_iter(text) {
-            results.success.push(extract_context(text, cap.start(), cap.end(), 30, 60));
+            results
+                .success
+                .push(extract_context(text, cap.start(), cap.end(), 30, 60));
         }
     }
-    
+
     // â”€â”€ FRUSTRATION: Pain points, negative signals â”€â”€
     // AFINN negative valence + discourse frustration markers
-    if let Ok(re) = Regex::new(r"(?i)\b(frustrated|annoying|ugh|keeps breaking|why does|still broken|doesn't work|gave up|wasted time|ridiculous|terrible|horrible|awful|broken again|this sucks|hate this|pain in|nightmare|headache|infuriating|maddening|unbelievable|seriously\?|come on|for the .{1,10} time|how is this|makes no sense|what the hell|waste of|killing me|driving me crazy|so slow|unacceptable|deal ?breaker|show ?stopper|blocker|regression|degraded|worse than|downgrade)\b") {
+    if let Ok(re) = Regex::new(
+        r"(?i)\b(frustrated|annoying|ugh|keeps breaking|why does|still broken|doesn't work|gave up|wasted time|ridiculous|terrible|horrible|awful|broken again|this sucks|hate this|pain in|nightmare|headache|infuriating|maddening|unbelievable|seriously\?|come on|for the .{1,10} time|how is this|makes no sense|what the hell|waste of|killing me|driving me crazy|so slow|unacceptable|deal ?breaker|show ?stopper|blocker|regression|degraded|worse than|downgrade)\b",
+    ) {
         for cap in re.find_iter(text) {
-            results.frustration.push(extract_context(text, cap.start(), cap.end(), 40, 80));
+            results
+                .frustration
+                .push(extract_context(text, cap.start(), cap.end(), 40, 80));
         }
     }
-    
+
     // â”€â”€ ANTI-PATTERNS: Recognized mistakes, things to avoid â”€â”€
     // Retrospective discourse markers, counterfactual reasoning
-    if let Ok(re) = Regex::new(r"(?i)\b(should have|shouldn't have|next time|avoid|wrong approach|mistake was|don't do|bad idea|overkill|over.?engineered|premature|unnecessary|redundant|could have just|if only|in hindsight|looking back|that was dumb|lesson:|anti.?pattern|never again|the hard way|wasted effort|wrong call|missed the|overlooked|forgot to|failed to|neglected|skipped|shortcut that|hack that|technical debt|band.?aid|duct tape|workaround that|too complex|too clever|too many|too much)\b") {
+    if let Ok(re) = Regex::new(
+        r"(?i)\b(should have|shouldn't have|next time|avoid|wrong approach|mistake was|don't do|bad idea|overkill|over.?engineered|premature|unnecessary|redundant|could have just|if only|in hindsight|looking back|that was dumb|lesson:|anti.?pattern|never again|the hard way|wasted effort|wrong call|missed the|overlooked|forgot to|failed to|neglected|skipped|shortcut that|hack that|technical debt|band.?aid|duct tape|workaround that|too complex|too clever|too many|too much)\b",
+    ) {
         for cap in re.find_iter(text) {
-            results.anti_patterns.push(extract_context(text, cap.start(), cap.end(), 40, 80));
+            results
+                .anti_patterns
+                .push(extract_context(text, cap.start(), cap.end(), 40, 80));
         }
     }
-    
+
     // â”€â”€ PIVOTS: Topic changes, transition markers â”€â”€
     // Discourse markers: topic-shift signals, boundary markers
-    if let Ok(re) = Regex::new(r"(?i)\b(anyway|moving on|let's switch|back to|on another note|by the way|speaking of|tangent|sidebar|before I forget|also|oh and|one more thing|unrelated|separate topic|different question|quick question|while I have you|while we're at it|another thing|real quick|btw|shifting gears|circling back|returning to|as for|regarding|about that|now about|next up|on to)\b") {
+    if let Ok(re) = Regex::new(
+        r"(?i)\b(anyway|moving on|let's switch|back to|on another note|by the way|speaking of|tangent|sidebar|before I forget|also|oh and|one more thing|unrelated|separate topic|different question|quick question|while I have you|while we're at it|another thing|real quick|btw|shifting gears|circling back|returning to|as for|regarding|about that|now about|next up|on to)\b",
+    ) {
         for cap in re.find_iter(text) {
-            results.pivots.push(extract_context(text, cap.start(), cap.end(), 20, 60));
+            results
+                .pivots
+                .push(extract_context(text, cap.start(), cap.end(), 20, 60));
         }
     }
-    
+
     // â”€â”€ HEDGING: Uncertainty, tentativeness â”€â”€
     // Discourse markers: epistemic hedges, modal weakeners
-    if let Ok(re) = Regex::new(r"(?i)\b(I think|maybe|probably|not sure|might be|could be|possibly|it seems|appears to|I believe|I suppose|I guess|not certain|uncertain|unclear|hard to say|don't know if|I wonder|questionable|debatable|risky|tricky|complicated|iffy|sketchy|I should note|to be fair|part of me|on the other hand|then again|that said|having said that|I'm torn|not convinced|remains to be seen|TBD|open question)\b") {
+    if let Ok(re) = Regex::new(
+        r"(?i)\b(I think|maybe|probably|not sure|might be|could be|possibly|it seems|appears to|I believe|I suppose|I guess|not certain|uncertain|unclear|hard to say|don't know if|I wonder|questionable|debatable|risky|tricky|complicated|iffy|sketchy|I should note|to be fair|part of me|on the other hand|then again|that said|having said that|I'm torn|not convinced|remains to be seen|TBD|open question)\b",
+    ) {
         for cap in re.find_iter(text) {
-            results.hedging.push(extract_context(text, cap.start(), cap.end(), 20, 80));
+            results
+                .hedging
+                .push(extract_context(text, cap.start(), cap.end(), 20, 80));
         }
     }
-    
+
     // Build legacy aliases for backward compatibility
-    results.emotions = results.frustration.iter()
+    results.emotions = results
+        .frustration
+        .iter()
         .chain(results.success.iter())
         .cloned()
         .collect();
     results.held_back = results.hedging.clone();
-    
+
     // Score: weighted by extraction priority
     let weighted = (results.corrections.len() as f32 * 3.0)  // Tier 0
         + (results.decisions.len() as f32 * 3.0)              // Tier 0
@@ -292,9 +350,9 @@ fn run_heuristics(text: &str) -> HeuristicResults {
         + (results.success.len() as f32 * 1.5)                // Tier 1
         + (results.frustration.len() as f32 * 1.5)            // Tier 1
         + (results.pivots.len() as f32 * 1.0)                 // Tier 2
-        + (results.hedging.len() as f32 * 0.5);               // Low priority
+        + (results.hedging.len() as f32 * 0.5); // Low priority
     results.score = (weighted / 30.0).min(1.0);
-    
+
     results
 }
 
@@ -306,30 +364,31 @@ fn score_joe_fitness(response: &str) -> Value {
     let mut deductions: Vec<(&str, i32)> = Vec::new();
     let mut bonuses: Vec<(&str, i32)> = Vec::new();
     let text_lower = response.to_lowercase();
-    
+
     // DEDUCTIONS
     // Hedge when direct (-1)
     let hedge_re = Regex::new(r"(?i)(it might be|perhaps|possibly|it's possible that|it could be|maybe|I think|I believe|in my opinion)").unwrap();
     let hedge_count = hedge_re.find_iter(response).count();
     if hedge_count > 2 {
-        deductions.push(("Excessive hedging", -1 * (hedge_count as i32 - 1).min(3)));
+        deductions.push(("Excessive hedging", -((hedge_count as i32 - 1).min(3))));
     }
-    
+
     // Ask permission for obvious (-2)
     let permission_re = Regex::new(r"(?i)(would you like me to|shall I|do you want me to|should I proceed|let me know if you'd like)").unwrap();
     if permission_re.is_match(response) {
         deductions.push(("Asking permission for obvious actions", -2));
     }
-    
+
     // Explain vs just do (-1)
-    if text_lower.contains("here's how") || text_lower.contains("first, let me explain") {
-        if response.len() > 500 && !response.contains("```") {
-            deductions.push(("Explaining instead of doing", -1));
-        }
+    if (text_lower.contains("here's how") || text_lower.contains("first, let me explain"))
+        && response.len() > 500
+        && !response.contains("```")
+    {
+        deductions.push(("Explaining instead of doing", -1));
     }
-    
+
     // Miss something obvious (-2) - hard to detect without context
-    
+
     // Incomplete requiring follow-up (-1)
     if response.ends_with("?") && !response.contains("```") {
         let questions = response.matches('?').count();
@@ -337,45 +396,52 @@ fn score_joe_fitness(response: &str) -> Value {
             deductions.push(("Multiple questions instead of action", -1));
         }
     }
-    
+
     // Shortcuts that bite later (-3)
     if text_lower.contains("should work") || text_lower.contains("common practice") {
         deductions.push(("Shortcut language detected", -3));
     }
-    
+
     // BONUSES
     // Anticipated next question (+1)
-    if text_lower.contains("you might also") || text_lower.contains("related:") || text_lower.contains("next step") {
+    if text_lower.contains("you might also")
+        || text_lower.contains("related:")
+        || text_lower.contains("next step")
+    {
         bonuses.push(("Anticipated follow-up", 1));
     }
-    
+
     // Offered unwanted-but-useful (+2)
-    if text_lower.contains("side note:") || text_lower.contains("fyi:") || text_lower.contains("heads up:") {
+    if text_lower.contains("side note:")
+        || text_lower.contains("fyi:")
+        || text_lower.contains("heads up:")
+    {
         bonuses.push(("Proactive information", 2));
     }
-    
+
     // Caught own mistake (+1)
-    if text_lower.contains("actually, let me correct") || text_lower.contains("wait, that's wrong") {
+    if text_lower.contains("actually, let me correct") || text_lower.contains("wait, that's wrong")
+    {
         bonuses.push(("Self-correction", 1));
     }
-    
+
     // Elegant not just functional (+1)
     if response.contains("```") && response.len() < 800 {
         bonuses.push(("Concise with code", 1));
     }
-    
+
     // Calculate total
     let deduction_total: i32 = deductions.iter().map(|(_, v)| v).sum();
     let bonus_total: i32 = bonuses.iter().map(|(_, v)| v).sum();
     let total = bonus_total + deduction_total; // deductions are negative
-    
+
     let grade = match total {
         t if t >= 3 => "ðŸŒŸ Excellent",
-        t if t >= 1 => "âœ… Good", 
+        t if t >= 1 => "âœ… Good",
         t if t >= -1 => "âš ï¸ Acceptable",
-        _ => "âŒ Needs work"
+        _ => "âŒ Needs work",
     };
-    
+
     json!({
         "score": total,
         "grade": grade,
@@ -406,7 +472,8 @@ impl OllamaClient {
     }
 
     async fn embed(&self, model: &str, text: &str) -> Result<Vec<f32>> {
-        let resp = self.client
+        let resp = self
+            .client
             .post(format!("{}/api/embeddings", self.base_url))
             .json(&EmbedRequest {
                 model: model.to_string(),
@@ -420,7 +487,8 @@ impl OllamaClient {
     }
 
     async fn generate(&self, model: &str, prompt: &str) -> Result<String> {
-        let resp = self.client
+        let resp = self
+            .client
             .post(format!("{}/api/generate", self.base_url))
             .json(&GenerateRequest {
                 model: model.to_string(),
@@ -436,9 +504,13 @@ impl OllamaClient {
     }
 
     async fn fetch_url(&self, url: &str) -> Result<(String, u16)> {
-        let resp = self.client
+        let resp = self
+            .client
             .get(url)
-            .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+            .header(
+                "User-Agent",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            )
             .send()
             .await?;
         let status = resp.status().as_u16();
@@ -447,7 +519,8 @@ impl OllamaClient {
     }
 
     async fn list_models(&self) -> Result<Vec<Value>> {
-        let resp = self.client
+        let resp = self
+            .client
             .get(format!("{}/api/tags", self.base_url))
             .send()
             .await?
@@ -467,11 +540,15 @@ impl OllamaClient {
 }
 
 fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
-    if a.len() != b.len() || a.is_empty() { return 0.0; }
+    if a.len() != b.len() || a.is_empty() {
+        return 0.0;
+    }
     let dot: f32 = a.iter().zip(b.iter()).map(|(x, y)| x * y).sum();
     let norm_a: f32 = a.iter().map(|x| x * x).sum::<f32>().sqrt();
     let norm_b: f32 = b.iter().map(|x| x * x).sum::<f32>().sqrt();
-    if norm_a == 0.0 || norm_b == 0.0 { return 0.0; }
+    if norm_a == 0.0 || norm_b == 0.0 {
+        return 0.0;
+    }
     dot / (norm_a * norm_b)
 }
 
@@ -636,7 +713,6 @@ fn get_tool_definitions() -> Vec<Value> {
     tools
 }
 
-
 // ============================================================================
 // Tool Execution
 // ============================================================================
@@ -648,10 +724,12 @@ async fn execute_tool(state: &Arc<ServerState>, name: &str, args: Value) -> Resu
             let results = run_heuristics(text);
             Ok(json!(results))
         }
-        
+
         "embed" => {
             let text = args.get("text").and_then(|v| v.as_str()).unwrap_or("");
-            let model = args.get("model").and_then(|v| v.as_str())
+            let model = args
+                .get("model")
+                .and_then(|v| v.as_str())
                 .ok_or_else(|| anyhow::anyhow!("Missing 'model' parameter"))?;
             let embedding = state.ollama.embed(model, text).await?;
             Ok(json!({
@@ -663,9 +741,15 @@ async fn execute_tool(state: &Arc<ServerState>, name: &str, args: Value) -> Resu
         }
 
         "store_pattern" => {
-            let label = args.get("label").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let label = args
+                .get("label")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
             let text = args.get("text").and_then(|v| v.as_str()).unwrap_or("");
-            let model = args.get("model").and_then(|v| v.as_str())
+            let model = args
+                .get("model")
+                .and_then(|v| v.as_str())
                 .ok_or_else(|| anyhow::anyhow!("Missing 'model' parameter"))?;
             let embedding = state.ollama.embed(model, text).await?;
 
@@ -685,7 +769,9 @@ async fn execute_tool(state: &Arc<ServerState>, name: &str, args: Value) -> Resu
 
         "compare" => {
             let text = args.get("text").and_then(|v| v.as_str()).unwrap_or("");
-            let model = args.get("model").and_then(|v| v.as_str())
+            let model = args
+                .get("model")
+                .and_then(|v| v.as_str())
                 .ok_or_else(|| anyhow::anyhow!("Missing 'model' parameter"))?;
             let embedding = state.ollama.embed(model, text).await?;
 
@@ -697,7 +783,8 @@ async fn execute_tool(state: &Arc<ServerState>, name: &str, args: Value) -> Resu
                 }));
             }
 
-            let mut scores: Vec<(String, f32)> = patterns.iter()
+            let mut scores: Vec<(String, f32)> = patterns
+                .iter()
                 .map(|(label, emb)| (label.clone(), cosine_similarity(&embedding, emb)))
                 .collect();
             scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
@@ -710,16 +797,22 @@ async fn execute_tool(state: &Arc<ServerState>, name: &str, args: Value) -> Resu
                     .collect::<Vec<_>>()
             }))
         }
-        
+
         "analyze" => {
             let text = args.get("text").and_then(|v| v.as_str()).unwrap_or("");
-            let model = args.get("model").and_then(|v| v.as_str())
+            let model = args
+                .get("model")
+                .and_then(|v| v.as_str())
                 .ok_or_else(|| anyhow::anyhow!("Missing 'model' parameter"))?;
-            let focus = args.get("focus").and_then(|v| v.as_str()).unwrap_or("general retrospection");
+            let focus = args
+                .get("focus")
+                .and_then(|v| v.as_str())
+                .unwrap_or("general retrospection");
 
             let heuristics = run_heuristics(text);
 
-            let prompt = format!(r#"You are analyzing a conversation transcript for retrospective self-understanding.
+            let prompt = format!(
+                r#"You are analyzing a conversation transcript for retrospective self-understanding.
 
 Heuristic pre-analysis found:
 - {} corrections, {} decisions, {} discoveries
@@ -759,19 +852,36 @@ Provide concise, specific analysis."#,
                 "analysis": analysis
             }))
         }
-        
+
         "smart_fetch" => {
             let url = args.get("url").and_then(|v| v.as_str()).unwrap_or("");
-            let model = args.get("model").and_then(|v| v.as_str())
+            let model = args
+                .get("model")
+                .and_then(|v| v.as_str())
                 .ok_or_else(|| anyhow::anyhow!("Missing 'model' parameter"))?;
-            let focus = args.get("focus").and_then(|v| v.as_str()).unwrap_or("main points and key information");
-            let max_tokens = args.get("max_tokens").and_then(|v| v.as_u64()).unwrap_or(500) as usize;
-            let force_include_raw = args.get("include_raw").and_then(|v| v.as_bool()).unwrap_or(false);
-            let skip_summary = args.get("skip_summary").and_then(|v| v.as_bool()).unwrap_or(false);
-            let timeout_secs = args.get("timeout_secs").and_then(|v| v.as_u64()).unwrap_or(60) as u64;
-            
+            let focus = args
+                .get("focus")
+                .and_then(|v| v.as_str())
+                .unwrap_or("main points and key information");
+            let max_tokens = args
+                .get("max_tokens")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(500) as usize;
+            let force_include_raw = args
+                .get("include_raw")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+            let skip_summary = args
+                .get("skip_summary")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+            let timeout_secs = args
+                .get("timeout_secs")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(60);
+
             let mut warnings: Vec<String> = vec![];
-            
+
             // Fetch URL
             let fetch_start = Instant::now();
             let (raw_html, status) = match state.ollama.fetch_url(url).await {
@@ -785,25 +895,28 @@ Provide concise, specific analysis."#,
                 }
             };
             let fetch_time_ms = fetch_start.elapsed().as_millis();
-            
+
             if status != 200 {
                 warnings.push(format!("HTTP status {}", status));
             }
-            
+
             let source_length = raw_html.len();
-            
+
             // Strip HTML
             let clean_text = strip_html(&raw_html);
             let clean_length = clean_text.len();
-            
+
             // INSTANT: Check for time-sensitive content (no Mistral, ~1ms)
             let currency_check = check_currency_needs(&clean_text);
-            
+
             // Check for JS-heavy / empty content
             if clean_length < 200 {
-                warnings.push("Very little text extracted - page may be JS-rendered. Try browser:http_scrape".to_string());
+                warnings.push(
+                    "Very little text extracted - page may be JS-rendered. Try browser:http_scrape"
+                        .to_string(),
+                );
             }
-            
+
             // If skip_summary, return cleaned text only
             if skip_summary {
                 let (preview, truncated) = truncate_to_chars(&clean_text, 2000);
@@ -828,17 +941,21 @@ Provide concise, specific analysis."#,
                 }
                 return Ok(response);
             }
-            
+
             // Truncate for Mistral (safe limit ~16K chars = ~4K tokens)
             let max_input_chars = 16000;
             let (input_text, was_truncated) = truncate_to_chars(&clean_text, max_input_chars);
             if was_truncated {
-                warnings.push(format!("Input truncated from {} to {} chars for LLM", clean_length, max_input_chars));
+                warnings.push(format!(
+                    "Input truncated from {} to {} chars for LLM",
+                    clean_length, max_input_chars
+                ));
             }
-            
+
             // Build summary prompt
             let max_words = max_tokens * 3 / 4;
-            let prompt = format!(r#"Summarize the following web page content.
+            let prompt = format!(
+                r#"Summarize the following web page content.
 
 FOCUS: {}
 MAX LENGTH: {} words
@@ -852,15 +969,19 @@ RULES:
 CONTENT:
 {}
 
-SUMMARY:"#, focus, max_words, input_text);
-            
+SUMMARY:"#,
+                focus, max_words, input_text
+            );
+
             // Generate summary with timeout
             let summary_start = Instant::now();
             let summary_future = state.ollama.generate(model, &prompt);
             let summary = match tokio::time::timeout(
-                std::time::Duration::from_secs(timeout_secs), 
-                summary_future
-            ).await {
+                std::time::Duration::from_secs(timeout_secs),
+                summary_future,
+            )
+            .await
+            {
                 Ok(Ok(s)) => s,
                 Ok(Err(e)) => {
                     // LLM error - return cleaned text
@@ -894,10 +1015,11 @@ SUMMARY:"#, focus, max_words, input_text);
                 }
             };
             let summary_time_ms = summary_start.elapsed().as_millis();
-            
+
             // Build response - only include raw if forced OR warnings exist
-            let include_raw = force_include_raw || !warnings.is_empty() || currency_check.needs_verification;
-            
+            let include_raw =
+                force_include_raw || !warnings.is_empty() || currency_check.needs_verification;
+
             let mut response = json!({
                 "success": true,
                 "summary": summary.trim(),
@@ -908,12 +1030,12 @@ SUMMARY:"#, focus, max_words, input_text);
                 "fetch_time_ms": fetch_time_ms,
                 "summary_time_ms": summary_time_ms
             });
-            
+
             // Add warnings if any
             if !warnings.is_empty() {
                 response["warnings"] = json!(warnings);
             }
-            
+
             // Add currency warning if detected
             if currency_check.needs_verification {
                 response["currency_warning"] = json!({
@@ -923,113 +1045,147 @@ SUMMARY:"#, focus, max_words, input_text);
                     "action": "Use web_search to verify current info before relying on this summary"
                 });
             }
-            
+
             // Include raw preview only when needed
             if include_raw {
                 let (preview, _) = truncate_to_chars(&clean_text, 1000);
                 response["raw_preview"] = json!(preview);
             }
-            
+
             Ok(response)
         }
-        
-        "health" => {
-            match state.ollama.list_models().await {
-                Ok(models) => Ok(json!({
-                    "success": true,
-                    "ollama_reachable": true,
-                    "model_count": models.len(),
-                    "models": models,
-                    "note": "No specific model assumed. Specify model per tool call."
-                })),
-                Err(e) => Ok(json!({
-                    "success": false,
-                    "ollama_reachable": false,
-                    "error": format!("Ollama not responding: {}. Is 'ollama serve' running?", e)
-                }))
-            }
-        }
-        
+
+        "health" => match state.ollama.list_models().await {
+            Ok(models) => Ok(json!({
+                "success": true,
+                "ollama_reachable": true,
+                "model_count": models.len(),
+                "models": models,
+                "note": "No specific model assumed. Specify model per tool call."
+            })),
+            Err(e) => Ok(json!({
+                "success": false,
+                "ollama_reachable": false,
+                "error": format!("Ollama not responding: {}. Is 'ollama serve' running?", e)
+            })),
+        },
+
         "score_response" => {
             let response = args.get("response").and_then(|v| v.as_str()).unwrap_or("");
             let _context = args.get("context").and_then(|v| v.as_str()).unwrap_or("");
             let result = score_joe_fitness(response);
             Ok(result)
         }
-        
-        "semantic_search" => {
-            semantic::handle_semantic_search(&args).await
-        }
-        "semantic_reindex" => {
-            semantic::handle_semantic_reindex(&args).await
-        }
+
+        "semantic_search" => semantic::handle_semantic_search(&args).await,
+        "semantic_reindex" => semantic::handle_semantic_reindex(&args).await,
         // === OPS TOOLS ===
         "server_health" => {
-            let map_content = std::fs::read_to_string(FALLBACK_MAP_PATH)
-                .unwrap_or_else(|_| "{}".to_string());
+            let map_content =
+                std::fs::read_to_string(FALLBACK_MAP_PATH).unwrap_or_else(|_| "{}".to_string());
             let map: Value = serde_json::from_str(&map_content).unwrap_or(json!({}));
-            let filter: Option<Vec<String>> = args.get("servers")
+            let filter: Option<Vec<String>> = args
+                .get("servers")
                 .and_then(|s| serde_json::from_value(s.clone()).ok());
             let servers = map.get("servers").and_then(|s| s.as_object());
-            
+
             if let Some(servers) = servers {
                 let mut results = serde_json::Map::new();
                 let mut alive = 0u32;
                 let mut dead = 0u32;
                 for (name, config) in servers {
                     if let Some(ref f) = filter {
-                        if !f.iter().any(|s| s == name) { continue; }
+                        if !f.iter().any(|s| s == name) {
+                            continue;
+                        }
                     }
-                    let process = config.get("process").and_then(|p| p.as_str()).unwrap_or("unknown");
+                    let process = config
+                        .get("process")
+                        .and_then(|p| p.as_str())
+                        .unwrap_or("unknown");
                     let is_alive = is_process_running(process);
-                    if is_alive { alive += 1; } else { dead += 1; }
-                    let mirror = config.get("mirror").and_then(|m| m.as_str()).unwrap_or("none");
-                    let critical = config.get("critical").and_then(|c| c.as_bool()).unwrap_or(false);
+                    if is_alive {
+                        alive += 1;
+                    } else {
+                        dead += 1;
+                    }
+                    let mirror = config
+                        .get("mirror")
+                        .and_then(|m| m.as_str())
+                        .unwrap_or("none");
+                    let critical = config
+                        .get("critical")
+                        .and_then(|c| c.as_bool())
+                        .unwrap_or(false);
                     results.insert(name.clone(), json!({
                         "alive": is_alive, "process": process, "mirror": mirror, "critical": critical
                     }));
                 }
-                Ok(json!({ "servers": results, "summary": { "alive": alive, "dead": dead, "total": alive + dead } }))
+                Ok(
+                    json!({ "servers": results, "summary": { "alive": alive, "dead": dead, "total": alive + dead } }),
+                )
             } else {
                 Ok(json!({"error": "No servers in fallback map", "path": FALLBACK_MAP_PATH}))
             }
         }
-        
+
         "mcp_rebuild" => {
             use std::process::Command as Cmd;
-            let target = args.get("target").and_then(|v| v.as_str())
+            let target = args
+                .get("target")
+                .and_then(|v| v.as_str())
                 .ok_or_else(|| anyhow::anyhow!("Missing 'target' parameter"))?;
             let rust_dir = std::path::PathBuf::from(r"C:\rust-mcp");
             let target_dir = rust_dir.join(target);
             let exe_name = format!("{}.exe", target);
             let exe_path = rust_dir.join("target").join("release").join(&exe_name);
             let backup_dir = rust_dir.join("backups");
-            
+
             if !target_dir.exists() {
-                return Ok(json!({"error": format!("Target '{}' not found at {:?}", target, target_dir)}));
+                return Ok(
+                    json!({"error": format!("Target '{}' not found at {:?}", target, target_dir)}),
+                );
             }
             std::fs::create_dir_all(&backup_dir).ok();
-            
+
             // Backup
             let backup_path = if exe_path.exists() {
-                let epoch = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs();
+                let epoch = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs();
                 let bp = backup_dir.join(format!("{}_{}.exe", target, epoch));
                 std::fs::copy(&exe_path, &bp).ok();
                 Some(bp.display().to_string())
-            } else { None };
-            
+            } else {
+                None
+            };
+
             // Kill
-            let killed = Cmd::new("taskkill").args(["/F", "/IM", &exe_name]).output()
-                .map(|o| o.status.success()).unwrap_or(false);
+            let killed = Cmd::new("taskkill")
+                .args(["/F", "/IM", &exe_name])
+                .output()
+                .map(|o| o.status.success())
+                .unwrap_or(false);
             std::thread::sleep(std::time::Duration::from_secs(3));
-            
+
             // Build
-            let cargo = std::env::var("USERPROFILE").map(|p| std::path::PathBuf::from(p).join(".cargo").join("bin").join("cargo.exe")).unwrap_or_else(|_| std::path::PathBuf::from("cargo"));
-            let build = Cmd::new(&cargo).args(["build", "--release"]).current_dir(&target_dir)
-                .output().map_err(|e| anyhow::anyhow!("Cargo failed: {}", e))?;
+            let cargo = std::env::var("USERPROFILE")
+                .map(|p| {
+                    std::path::PathBuf::from(p)
+                        .join(".cargo")
+                        .join("bin")
+                        .join("cargo.exe")
+                })
+                .unwrap_or_else(|_| std::path::PathBuf::from("cargo"));
+            let build = Cmd::new(&cargo)
+                .args(["build", "--release"])
+                .current_dir(&target_dir)
+                .output()
+                .map_err(|e| anyhow::anyhow!("Cargo failed: {}", e))?;
             let success = build.status.success();
             let stderr = String::from_utf8_lossy(&build.stderr);
-            
+
             Ok(json!({
                 "target": target,
                 "backup_path": backup_path,
@@ -1041,32 +1197,38 @@ SUMMARY:"#, focus, max_words, input_text);
                     else { format!("Build failed for {}", target) }
             }))
         }
-        
+
         "error_fallbacks" => {
-            let fallbacks_content = std::fs::read_to_string(ERROR_FALLBACKS_PATH)
-                .unwrap_or_else(|_| "{}".to_string());
+            let fallbacks_content =
+                std::fs::read_to_string(ERROR_FALLBACKS_PATH).unwrap_or_else(|_| "{}".to_string());
             let fallbacks: Value = serde_json::from_str(&fallbacks_content).unwrap_or(json!({}));
-            
+
             if let Some(pattern) = args.get("error_pattern").and_then(|v| v.as_str()) {
                 let pattern_lower = pattern.to_lowercase();
                 let mut matches = Vec::new();
                 if let Some(obj) = fallbacks.as_object() {
                     for (key, val) in obj {
                         let symptom = val.get("symptom").and_then(|s| s.as_str()).unwrap_or("");
-                        if symptom.to_lowercase().contains(&pattern_lower) || key.to_lowercase().contains(&pattern_lower) {
+                        if symptom.to_lowercase().contains(&pattern_lower)
+                            || key.to_lowercase().contains(&pattern_lower)
+                        {
                             matches.push(json!({"name": key, "config": val}));
                         }
                     }
                 }
-                Ok(json!({"matches": matches, "total_patterns": fallbacks.as_object().map(|o| o.len()).unwrap_or(0)}))
+                Ok(
+                    json!({"matches": matches, "total_patterns": fallbacks.as_object().map(|o| o.len()).unwrap_or(0)}),
+                )
             } else {
-                Ok(json!({"fallbacks": fallbacks, "total": fallbacks.as_object().map(|o| o.len()).unwrap_or(0)}))
+                Ok(
+                    json!({"fallbacks": fallbacks, "total": fallbacks.as_object().map(|o| o.len()).unwrap_or(0)}),
+                )
             }
         }
-        
+
         "plan" => Ok(planner::plan(&args)),
         "assemble" => Ok(planner::assemble(&args)),
-            _ => Ok(json!({"error": format!("Unknown tool: {}", name)}))
+        _ => Ok(json!({"error": format!("Unknown tool: {}", name)})),
     }
 }
 
@@ -1099,7 +1261,12 @@ struct JsonRpcError {
     message: String,
 }
 
-async fn handle_request(state: &Arc<ServerState>, method: &str, id: Value, params: Option<Value>) -> JsonRpcResponse {
+async fn handle_request(
+    state: &Arc<ServerState>,
+    method: &str,
+    id: Value,
+    params: Option<Value>,
+) -> JsonRpcResponse {
     match method {
         "initialize" => {
             info!("Initialize");
@@ -1117,7 +1284,7 @@ async fn handle_request(state: &Arc<ServerState>, method: &str, id: Value, param
                 error: None,
             }
         }
-        
+
         "tools/list" => {
             info!("Tools list");
             JsonRpcResponse {
@@ -1127,14 +1294,14 @@ async fn handle_request(state: &Arc<ServerState>, method: &str, id: Value, param
                 error: None,
             }
         }
-        
+
         "tools/call" => {
             let params = params.unwrap_or(json!({}));
             let tool_name = params.get("name").and_then(|v| v.as_str()).unwrap_or("");
             let tool_args = params.get("arguments").cloned().unwrap_or(json!({}));
-            
+
             info!("Tool call: {}", tool_name);
-            
+
             match execute_tool(state, tool_name, tool_args).await {
                 Ok(result) => JsonRpcResponse {
                     jsonrpc: "2.0".to_string(),
@@ -1158,17 +1325,17 @@ async fn handle_request(state: &Arc<ServerState>, method: &str, id: Value, param
                         "isError": true
                     })),
                     error: None,
-                }
+                },
             }
         }
-        
+
         "ping" => JsonRpcResponse {
             jsonrpc: "2.0".to_string(),
             id,
             result: Some(json!({})),
             error: None,
         },
-        
+
         _ => {
             warn!("Unknown method: {}", method);
             JsonRpcResponse {
@@ -1198,11 +1365,11 @@ async fn main() -> Result<()> {
         .init();
 
     info!("Retrospector MCP v1.2.0 starting (with smart_fetch + currency detection)...");
-    
+
     let state = ServerState::new();
     let stdin = std::io::stdin();
     let mut stdout = std::io::stdout();
-    
+
     for line in stdin.lock().lines() {
         let line = match line {
             Ok(l) => l,
@@ -1211,9 +1378,11 @@ async fn main() -> Result<()> {
                 continue;
             }
         };
-        
-        if line.trim().is_empty() { continue; }
-        
+
+        if line.trim().is_empty() {
+            continue;
+        }
+
         let request: JsonRpcRequest = match serde_json::from_str(&line) {
             Ok(r) => r,
             Err(e) => {
@@ -1242,7 +1411,10 @@ async fn main() -> Result<()> {
                     result: None,
                     error: Some(JsonRpcError {
                         code: -32600,
-                        message: format!("Invalid JSON-RPC version: expected '2.0', got '{}'", version),
+                        message: format!(
+                            "Invalid JSON-RPC version: expected '2.0', got '{}'",
+                            version
+                        ),
                     }),
                 };
                 writeln!(stdout, "{}", serde_json::to_string(&response)?)?;
@@ -1255,16 +1427,22 @@ async fn main() -> Result<()> {
             Some(m) => m.clone(),
             None => continue,
         };
-        
+
         if request.id.is_none() || method.starts_with("notifications/") {
             continue;
         }
-        
-        let response = handle_request(&state, &method, request.id.unwrap_or(Value::Null), request.params).await;
+
+        let response = handle_request(
+            &state,
+            &method,
+            request.id.unwrap_or(Value::Null),
+            request.params,
+        )
+        .await;
         writeln!(stdout, "{}", serde_json::to_string(&response)?)?;
         stdout.flush()?;
     }
-    
+
     Ok(())
 }
 
