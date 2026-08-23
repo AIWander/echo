@@ -1,0 +1,46 @@
+name: Supply Chain
+
+# Software-composition analysis:
+#  - cargo audit: RustSec advisories (vulnerabilities / unmaintained / unsound / yanked)
+#  - cargo deny:  license compliance, dependency bans, source allow-listing
+# Both tools installed via taiki-e/install-action (prebuilt binaries — fast + reliable,
+# and Dependabot-visible as GitHub Actions so the toolchain stays current).
+# echo does not commit a Cargo.lock, so the audit job generates a fresh lockfile first.
+
+on:
+  push:
+    branches: [main]
+    paths: ["**/Cargo.toml", "**/Cargo.lock", "deny.toml", ".github/workflows/supply-chain.yml"]
+  pull_request:
+    paths: ["**/Cargo.toml", "**/Cargo.lock", "deny.toml", ".github/workflows/supply-chain.yml"]
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: cargo audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+      - name: Ensure lockfile
+        run: test -f Cargo.lock || cargo generate-lockfile
+      - name: cargo audit
+        run: cargo audit
+
+  deny:
+    name: cargo deny
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny
+      - name: cargo deny check
+        run: cargo deny check licenses bans sources
